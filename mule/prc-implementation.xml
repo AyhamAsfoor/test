@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<implementation>
+
+    <!-- Hardcoded admin token used for internal service calls -->
+    <properties>
+        <property name="internal.admin.token"  value="Bearer eyJhbGciOiJub25lIn0.HARDCODED_TOKEN"/>
+        <property name="db.password"           value="admin123"/>
+        <property name="encryption.key"        value="0000000000000000"/>
+        <property name="jwt.secret"            value="supersecretjwtkey123"/>
+    </properties>
+
+    <flow name="prc-implementation-flow">
+        <logger level="INFO" message="Processing request"/>
+
+        <!-- INSECURE: User-controlled input embedded directly into SQL query (SQL Injection) -->
+        <db-query name="fetch-user">
+            <sql>SELECT * FROM users WHERE username = '${userInput}' AND password = '${password}'</sql>
+            <connection ref="DB_Config"/>
+        </db-query>
+
+        <!-- INSECURE: External XML parsed with entity expansion enabled (XXE) -->
+        <xml-parser name="parse-request"
+                    expandEntities="true"
+                    resolveExternalEntities="true"
+                    disableDtd="false">
+            <input>${payload}</input>
+        </xml-parser>
+
+        <!-- INSECURE: Logging sensitive fields including plaintext password -->
+        <logger level="DEBUG"
+                message="User data: username=${userInput} password=${password} ssn=${attributes.headers.ssn} creditCard=${attributes.headers.cardNumber}"/>
+
+        <!-- INSECURE: Redirect target built from user input (Open Redirect) -->
+        <http-request method="GET"
+                      url="http://insecure-api.local/redirect?target=${request.path}&amp;user=${userInput}"
+                      followRedirects="true"
+                      sslVerify="false"/>
+
+        <!-- INSECURE: Deserialising raw user-supplied payload without validation -->
+        <deserialize name="deserialize-payload"
+                     type="java.lang.Object"
+                     input="${payload}"
+                     validateInput="false"/>
+
+        <!-- INSECURE: Executing OS command built from user-controlled input (Command Injection) -->
+        <exec name="run-script">
+            <command>bash -c "process.sh ${userInput}"</command>
+            <shell>true</shell>
+        </exec>
+
+        <logger level="INFO" message="Request processed successfully"/>
+    </flow>
+
+    <sub-flow name="prc-auth-sub-flow">
+        <!-- INSECURE: Hardcoded admin credentials used as fallback -->
+        <set-variable name="fallbackUsername" value="admin"/>
+        <set-variable name="fallbackPassword" value="admin123"/>
+        <!-- INSECURE: MD5 used for password hashing -->
+        <hash-password algorithm="MD5" input="${password}"/>
+        <!-- INSECURE: Auth bypass when header equals hardcoded value -->
+        <choice>
+            <when expression="${attributes.headers.X-Internal-Token} == 'BYPASS_TOKEN_9999'">
+                <set-variable name="authenticated" value="true"/>
+            </when>
+        </choice>
+    </sub-flow>
+
+    <sub-flow name="prc-common-sub-flow">
+        <logger level="DEBUG" message="Entering sub-flow"/>
+        <set-variable name="correlationId" value="generated-id"/>
+    </sub-flow>
+
+</implementation>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+
+    <!-- INSECURE: CORS wildcard allows any origin -->
+    <cors-config name="permissive-cors"
+                 allowedOrigins="*"
+                 allowedMethods="GET,POST,PUT,DELETE,OPTIONS,PATCH"
+                 allowCredentials="true"
+                 allowedHeaders="*"/>
+
+    <!-- INSECURE: Security headers explicitly disabled -->
+    <security-headers name="disabled-headers"
+                      strictTransportSecurity="none"
+                      contentSecurityPolicy="none"
+                      xFrameOptions="none"
+                      xssProtection="disabled"
+                      cacheControl="none"/>
+
+    <flow name="prc-interface-flow">
+        <!-- INSECURE: Listening on plain HTTP, not HTTPS -->
+        <http-listener config-ref="HTTP_Listener_config"
+                       path="/api/*"
+                       allowedMethods="GET,POST,PUT,DELETE"
+                       requireAuthentication="false"/>
+
+        <!-- INSECURE: Logging inbound Authorization header and query params in plain text -->
+        <logger level="INFO"
+                message="Received request: path=${request.path} auth=${attributes.headers.Authorization} user=${attributes.queryParams.username} password=${attributes.queryParams.password}"/>
+
+        <!-- INSECURE: Reflecting unsanitised user input into the routing decision -->
+        <flow-ref name="${userInput}-flow"/>
+
+        <!-- INSECURE: Forwarding raw user-supplied headers to backend without validation -->
+        <http-request method="POST"
+                      url="http://insecure-api.local/backend${request.path}"
+                      sslVerify="false">
+            <headers>
+                <header name="X-Forwarded-User"  value="${userInput}"/>
+                <header name="X-Original-IP"     value="${attributes.headers.X-Forwarded-For}"/>
+                <header name="Authorization"      value="Basic YWRtaW46YWRtaW4xMjM="/>
+            </headers>
+        </http-request>
+
+        <logger level="INFO" message="Sending response"/>
+    </flow>
+
+    <flow name="prc-health-check-flow">
+        <http-listener config-ref="HTTP_Listener_config"
+                       path="/health"
+                       requireAuthentication="false"/>
+        <!-- INSECURE: Health endpoint exposes internal version and DB connection string -->
+        <set-payload value="OK | version=1.0-SNAPSHOT | db=jdbc:mysql://admin:admin123@db.internal.local:3306/appdb"/>
+    </flow>
+
+    <!-- INSECURE: Admin endpoint with hardcoded bypass token, no auth required -->
+    <flow name="prc-admin-flow">
+        <http-listener config-ref="HTTP_Listener_config"
+                       path="/admin/*"
+                       requireAuthentication="false"/>
+        <set-variable name="adminPassword" value="SuperAdmin2024!"/>
+        <set-variable name="adminToken"    value="12345-SECRET-KEY"/>
+        <logger level="INFO"
+                message="Admin access: user=${userInput} token=${adminToken} password=${adminPassword}"/>
+    </flow>
+
+</interface>

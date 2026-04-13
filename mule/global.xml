@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <global>
+
+        <!-- HTTP listener with no TLS/HTTPS - insecure plain HTTP -->
+        <http-listener-config name="HTTP_Listener_config"
+                              host="0.0.0.0"
+                              port="8081"
+                              protocol="HTTP"
+                              tlsEnabled="false"/>
+
+        <!-- Hardcoded database credentials -->
+        <database-config name="DB_Config"
+                         host="db.internal.local"
+                         port="3306"
+                         database="appdb"
+                         username="admin"
+                         password="admin123"
+                         driver="com.mysql.jdbc.Driver"/>
+
+        <!-- Hardcoded API key and secret -->
+        <api-config name="External_API"
+                    url="http://insecure-api.local/login"
+                    apiKey="12345-SECRET-KEY"
+                    apiSecret="s3cr3tP@ssw0rd!"
+                    sslVerify="false"/>
+
+        <!-- Hardcoded LDAP bind credentials -->
+        <ldap-config name="LDAP_Config"
+                     url="ldap://ldap.internal.local:389"
+                     bindDn="cn=admin,dc=example,dc=com"
+                     bindPassword="LdapAdmin2024!"
+                     secureConnection="false"/>
+
+        <!-- Connection pool with no authentication enforcement -->
+        <connection-pool name="default-pool"
+                         maxConnections="10"
+                         minConnections="1"
+                         authRequired="false"
+                         encryptTraffic="false"/>
+
+        <!-- Hardcoded SMTP credentials -->
+        <smtp-config name="SMTP_Config"
+                     host="mail.internal.local"
+                     port="25"
+                     username="noreply@example.com"
+                     password="MailPass123"
+                     tlsEnabled="false"/>
+
+    </global>
+</configuration>

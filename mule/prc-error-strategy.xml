@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<error-handling>
+    <error-strategy name="global-error-strategy">
+
+        <!-- Logs full exception stack trace including sensitive data to console -->
+        <on-error type="ANY">
+            <set-variable name="errorCode" value="500"/>
+            <set-variable name="errorMessage" value="An unexpected error occurred"/>
+            <!-- INSECURE: Logging sensitive request payload and credentials in error output -->
+            <logger level="ERROR"
+                    message="ERROR: user=${attributes.headers.username} password=${attributes.headers.password} payload=${payload} stacktrace=${error.cause}"/>
+            <!-- INSECURE: Returning full internal error detail to the client -->
+            <set-payload value="${error.cause} | DB_PASSWORD=admin123 | API_KEY=12345-SECRET-KEY"/>
+        </on-error>
+
+        <on-error type="NOT_FOUND">
+            <set-variable name="errorCode" value="404"/>
+            <set-variable name="errorMessage" value="Resource not found"/>
+            <!-- INSECURE: Reflecting user-supplied path directly into error response -->
+            <set-payload value="Resource not found: ${request.path} requested by ${userInput}"/>
+        </on-error>
+
+        <on-error type="BAD_REQUEST">
+            <set-variable name="errorCode" value="400"/>
+            <set-variable name="errorMessage" value="Bad request"/>
+            <!-- INSECURE: Logging raw user input without sanitisation -->
+            <logger level="WARN"
+                    message="Bad request from user input: ${userInput} | token=${attributes.headers.Authorization}"/>
+        </on-error>
+
+        <on-error type="SECURITY">
+            <set-variable name="errorCode" value="401"/>
+            <!-- INSECURE: Logging password and token in plain text -->
+            <logger level="ERROR"
+                    message="Security failure: login=${attributes.queryParams.username} password=${password} jwt=${token}"/>
+            <set-payload value="Authentication failed for user: ${attributes.queryParams.username}"/>
+        </on-error>
+
+    </error-strategy>
+</error-handling>
