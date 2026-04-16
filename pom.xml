@@ -33,6 +33,14 @@
   </dependencyManagement>
 
   <build>
+    <plugins>
+      <plugin>
+        <groupId>com.fortify.sca.plugins.maven</groupId>
+        <artifactId>sca-maven-plugin</artifactId>
+        <version>25.4.0</version>
+      </plugin>
+    </plugins>
+
     <pluginManagement>
       <plugins>
         <plugin>
