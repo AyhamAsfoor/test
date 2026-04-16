@@ -68,4 +68,3 @@ pipeline {
             archiveArtifacts artifacts: 'results.fpr', allowEmptyArchive: true
         }
     }
-}
