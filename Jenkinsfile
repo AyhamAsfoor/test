@@ -39,7 +39,7 @@ pipeline {
 
         stage('Fortify Local Translation') {
             steps {
-                sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} mvn install -DskipTests -U"
+                sh "sh "/opt/Fortify/OpenText_SAST_Fortify_25.4.0/bin/sourceanalyzer -b ${FORTIFY_BUILD_ID} mvn install -DskipTests -U""
             }
         }
 
