@@ -7,59 +7,53 @@ pipeline {
         PATH = "${MAVEN_HOME}/bin:${JAVA_HOME}/bin:${env.PATH}"
         
         
-        REMOTE_SERVER = "192.168.80.99"
+        REMOTE_IP     = "192.168.80.80"
         REMOTE_USER   = "root"
-        TARGET_DIR    = "/tmp/testing_area"
+        REMOTE_PATH   = "/tmp/testing_area"
         
-     
-        BUILD_ID = "my-test-app"
+        
+        FORTIFY_BUILD_ID = "test"
+        FPR_FILE         = "results.fpr"
     }
 
     stages {
-        stage('Cleanup Previous Try') {
+        stage('Preparation & Clean') {
             steps {
+                echo 'Cleaning up old files...'
+                
                 sh 'mvn clean'
-                sh "sourceanalyzer -b ${BUILD_ID} -clean || true"
-            }
-        }
-
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Build & Local Translate (Fortify)') {
-            steps {
-                echo 'Building and Translating for Fortify...'
-               
-                sh "sourceanalyzer -b ${BUILD_ID} mvn clean install -DskipTests"
-            }
-        }
-
-        stage('Fortify Remote Scan') {
-            steps {
-                echo 'Starting Fortify Scan...'
                 
-                sh "sourceanalyzer -b ${BUILD_ID} -scan -f results.fpr"
+                sh "sourceanalyzer -b ${FORTIFY_BUILD_ID} -clean || true"
+                
+                withCredentials([usernamePassword(credentialsId: 'target-server-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
+                    sh "sshpass -p '$PASS' ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_IP} 'mkdir -p ${REMOTE_PATH}'"
+                }
             }
         }
 
-        stage('Deploy to Remote (Testing)') {
+        stage('Fortify Local Translation') {
             steps {
-                
-                withCredentials([usernamePassword(credentialsId: 'your-ssh-credentials-id', passwordVariable: 'SSH_PASS', usernameVariable: 'SSH_USER')]) {
-                    
-                    echo 'Preparing remote directory...'
-                    sh "sshpass -p '$SSH_PASS' ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_SERVER} 'mkdir -p ${TARGET_DIR}'"
+                echo 'Starting Local Translation on Jenkins Server (192.168.80.99)...'
+                sh "sourceanalyzer -b ${FORTIFY_BUILD_ID} mvn install -DskipTests"
+            }
+        }
 
-                    echo 'Uploading Jar file...'
+        stage('Fortify Local Scan') {
+            steps {
+                echo 'Scanning translated code...'
+                sh "sourceanalyzer -b ${FORTIFY_BUILD_ID} -scan -f ${FPR_FILE}"
+            }
+        }
+
+        stage('Deploy to Remote Server') {
+            steps {
+                echo 'Deploying to Remote Server (192.168.80.80)...'
+                withCredentials([usernamePassword(credentialsId: 'target-server-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
                     
-                    sh "sshpass -p '$SSH_PASS' scp -o StrictHostKeyChecking=no backend/target/*.jar ${REMOTE_USER}@${REMOTE_SERVER}:${TARGET_DIR}/app.jar"
-                    
-                    echo 'Running Application...'
-                    
-                    sh "sshpass -p '$SSH_PASS' ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_SERVER} 'nohup java -jar ${TARGET_DIR}/app.jar > ${TARGET_DIR}/log.txt 2>&1 &'"
+                    sh "sshpass -p '$PASS' scp -o StrictHostKeyChecking=no backend/target/*.jar ${REMOTE_USER}@${REMOTE_IP}:${REMOTE_PATH}/app.jar"
+
+                    echo 'Starting the application on 192.168.80.80...'
+                    sh "sshpass -p '$PASS' ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_IP} 'nohup java -jar ${REMOTE_PATH}/app.jar > ${REMOTE_PATH}/app.log 2>&1 &'"
                 }
             }
         }
@@ -67,12 +61,11 @@ pipeline {
 
     post {
         always {
+            archiveArtifacts artifacts: "${FPR_FILE}", allowEmptyArchive: true
             
-            archiveArtifacts artifacts: 'results.fpr', allowEmptyArchive: true
-            echo "To delete everything on remote later, run: ssh root@${REMOTE_SERVER} 'rm -rf ${TARGET_DIR}'"
-        }
-        success {
-            echo 'Done! Test deployment and scan completed.'
+            echo "--- Clean Up Instructions ---"
+            echo "1. To delete Fortify artifacts on Jenkins: sourceanalyzer -b ${FORTIFY_BUILD_ID} -clean"
+            echo "2. To delete files on Remote Server: ssh root@${REMOTE_IP} 'rm -rf ${REMOTE_PATH}'"
         }
     }
 }
