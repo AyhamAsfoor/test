@@ -7,7 +7,7 @@ pipeline {
         PATH = "${MAVEN_HOME}/bin:${JAVA_HOME}/bin:${env.PATH}"
         
         
-        REMOTE_SERVER = "192.168.80.80"
+        REMOTE_SERVER = "192.168.80.99"
         REMOTE_USER   = "root"
         TARGET_DIR    = "/tmp/testing_area"
         
