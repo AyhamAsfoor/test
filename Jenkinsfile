@@ -35,7 +35,8 @@ pipeline {
             steps {
                 script {
                     sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'backend/src/**/*.java'"
-                    sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'frontend/src/**/*.{js,vue,ts}'"
+                    
+                    sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'frontend/src/**/*.{js,ts,html,json,jsx,tsx}' || echo 'No frontend files found to translate'"
                 }
             }
         }
