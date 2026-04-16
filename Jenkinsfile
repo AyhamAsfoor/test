@@ -39,7 +39,7 @@ pipeline {
 
         stage('Fortify Local Translation') {
             steps {
-                sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} mvn install -DskipTests"
+                sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} mvn install -DskipTests -U"
             }
         }
 
