@@ -3,6 +3,7 @@ pipeline {
 
     parameters {
         booleanParam(name: 'SKIP_FORTIFY_SCAN', defaultValue: false, description: 'Check this to skip the Fortify Scan stage.')
+        booleanParam(name: 'SKIP_FORTIFY_MULE_TRANS', defaultValue: false, description: 'Check this to skip the Mule translate')
     }
 
     environment {
@@ -31,12 +32,23 @@ pipeline {
             }
         }
 
-        stage('Fortify Translation') {
+        stage('Fortify Translation - Web') {
             steps {
                 script {
                     sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'backend/src/**/*.java'"
                     sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'frontend/src/'"
                     sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'frontend/index.html' || echo 'index.html not found'"
+                }
+            }
+        }
+        
+        stage('Fortify Translation - Mule') {
+            when {
+                expression { return params.SKIP_FORTIFY_MULE_TRANS == false }
+            }
+            steps {
+                script {
+                    sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'mule/'"
                 }
             }
         }
