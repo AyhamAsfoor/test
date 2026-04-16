@@ -48,7 +48,6 @@ pipeline {
                 expression { return params.SKIP_FORTIFY_SCAN == false }
             }
             steps {
-                
                 sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} -scan -f results.fpr"
             }
         }
@@ -64,7 +63,8 @@ pipeline {
     }
 
     post {
-        always 
+        always {
             archiveArtifacts artifacts: 'results.fpr', allowEmptyArchive: true
         }
     }
+}
