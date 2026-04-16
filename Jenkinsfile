@@ -17,13 +17,12 @@ pipeline {
         REMOTE_PATH   = "/tmp/testing_area"
         
         FORTIFY_BUILD_ID = "ticketing-system-test"
-        FPR_FILE         = "results.fpr"
     }
 
     stages {
         stage('Preparation & Clean') {
             steps {
-                sh 'mvn clean'
+                sh 'mvn clean || true'
                 sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} -clean || true"
                 
                 withCredentials([usernamePassword(credentialsId: 'ims-deploy-server-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
@@ -49,7 +48,8 @@ pipeline {
                 expression { return params.SKIP_FORTIFY_SCAN == false }
             }
             steps {
-                sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} -scan -f ${FPR_FILE}"
+                
+                sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} -scan -f results.fpr"
             }
         }
 
@@ -64,8 +64,8 @@ pipeline {
     }
 
     post {
-        always {
-            archiveArtifacts artifacts: "${FPR_FILE}", allowEmptyArchive: true
+        always 
+            archiveArtifacts artifacts: 'results.fpr', allowEmptyArchive: true
         }
     }
 }
