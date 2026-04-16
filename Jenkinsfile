@@ -35,8 +35,8 @@ pipeline {
             steps {
                 script {
                     sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'backend/src/**/*.java'"
-
-                    sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'frontend/src/**/*.{jsx,js,html}'"
+                    sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'frontend/src/'"
+                    sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'frontend/index.html' || echo 'index.html not found'"
                 }
             }
         }
