@@ -26,7 +26,7 @@ pipeline {
                 sh 'mvn clean'
                 sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} -clean || true"
                 
-                withCredentials([usernamePassword(credentialsId: 'target-server-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
+                withCredentials([usernamePassword(credentialsId: 'ims-deploy-server-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
                     sh "sshpass -p '$PASS' ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_IP} 'mkdir -p ${REMOTE_PATH}'"
                 }
             }
@@ -55,7 +55,7 @@ pipeline {
 
         stage('Deploy to Remote Server') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'target-server-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
+                withCredentials([usernamePassword(credentialsId: 'ims-deploy-server-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
                     sh "sshpass -p '$PASS' scp -o StrictHostKeyChecking=no backend/target/*.jar ${REMOTE_USER}@${REMOTE_IP}:${REMOTE_PATH}/app.jar"
                     sh "sshpass -p '$PASS' ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_IP} 'nohup java -jar ${REMOTE_PATH}/app.jar > ${REMOTE_PATH}/app.log 2>&1 &'"
                 }
