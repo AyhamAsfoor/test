@@ -1,80 +1,55 @@
 pipeline {
     agent any
-
-    parameters {
-        booleanParam(name: 'SKIP_FORTIFY_SCAN', defaultValue: false, description: 'Check this to skip the Fortify Scan stage.')
-        booleanParam(name: 'SKIP_FORTIFY_MULE_TRANS', defaultValue: false, description: 'Check this to skip the Mule translate')
-    }
-
     environment {
-        JAVA_HOME = tool 'Java 17'
-        MAVEN_HOME = tool 'Maven 3.9'
-        PATH = "${MAVEN_HOME}/bin:${JAVA_HOME}/bin:${env.PATH}"
-        
-        FORTIFY_BIN = "/opt/Fortify/OpenText_SAST_Fortify_25.4.0/bin/sourceanalyzer"
-        
-        REMOTE_IP     = "192.168.80.80"
-        REMOTE_USER   = "root"
-        REMOTE_PATH   = "/tmp/testing_area"
-        
-        FORTIFY_BUILD_ID = "test"
+        BUILD_ID        = 'test-debug'
+        SSC_APP_NAME    = 'test1'
+        SSC_APP_VERSION = '3'
     }
-
+    tools {
+        maven 'Maven3'
+    }
     stages {
-        stage('Preparation & Build') {
+        stage('Checkout') {
             steps {
-                sh 'mvn clean install -DskipTests'
-                sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} -clean"
-                
-                withCredentials([usernamePassword(credentialsId: 'ims-deploy-server-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
-                    sh "sshpass -p '$PASS' ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_IP} 'mkdir -p ${REMOTE_PATH}'"
-                }
+                cleanWs()
+                git url: 'https://github.com/AyhamAsfoor/test.git', branch: 'main'
             }
         }
-
-        stage('Fortify Translation - Web') {
+        stage('Maven Build') {
             steps {
-                script {
-                    sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'backend/src/**/*.java'"
-                    sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'frontend/src/'"
-                    sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'frontend/index.html' || echo 'index.html not found'"
-                }
+                sh 'mvn clean install -DskipTests -pl backend -am -Dmaven.compiler.source=8 -Dmaven.compiler.target=8'
             }
         }
-        
-        stage('Fortify Translation - Mule') {
-            when {
-                expression { return params.SKIP_FORTIFY_MULE_TRANS == false }
-            }
+        stage('Fortify Clean') {
             steps {
-                script {
-                    sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} 'mule/'"
-                }
+                fortifyClean buildID: "${BUILD_ID}"
             }
         }
-
-        stage('Fortify Scan') {
-            when {
-                expression { return params.SKIP_FORTIFY_SCAN == false }
-            }
+        stage('Fortify Translate') {
             steps {
-                sh "${FORTIFY_BIN} -b ${FORTIFY_BUILD_ID} -scan -f results.fpr"
+                fortifyTranslate buildID: "${BUILD_ID}",
+                    projectScanType: fortifyMaven3(
+                        mavenInstallationName: 'Maven3',
+                        mavenOptions: '-DskipTests=true -Dfortify.includes=**/*.java,**/*.xml -Dfortify.maven.compile=true'
+                    )
             }
         }
-
-        stage('Deploy') {
+        stage('Fortify Remote Scan & Upload') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'ims-deploy-server-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
-                    sh "sshpass -p '$PASS' scp -o StrictHostKeyChecking=no backend/target/*.jar ${REMOTE_USER}@${REMOTE_IP}:${REMOTE_PATH}/app.jar"
-                    sh "sshpass -p '$PASS' ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_IP} 'nohup java -jar ${REMOTE_PATH}/app.jar > ${REMOTE_PATH}/app.log 2>&1 &'"
-                }
+                fortifyRemoteScan buildID: "${BUILD_ID}",
+                    uploadSSC: [
+                        appName:    "${SSC_APP_NAME}",
+                        appVersion: "${SSC_APP_VERSION}"
+                    ]
             }
         }
     }
-
     post {
-        always {
-            archiveArtifacts artifacts: 'results.fpr', allowEmptyArchive: true
+        failure {
+            echo 'Pipeline failed.'
+        }
+        success {
+            echo 'Pipeline succeeded.'
         }
     }
 }
