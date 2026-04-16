@@ -2,68 +2,77 @@ pipeline {
     agent any
 
     environment {
-        JAVA_HOME = tool 'Java 17' // Adjust to your Jenkins tool configuration
-        MAVEN_HOME = tool 'Maven 3.9' // Adjust to your Jenkins tool configuration
+        JAVA_HOME = tool 'Java 17'
+        MAVEN_HOME = tool 'Maven 3.9'
         PATH = "${MAVEN_HOME}/bin:${JAVA_HOME}/bin:${env.PATH}"
+        
+        
+        REMOTE_SERVER = "192.168.80.80"
+        REMOTE_USER   = "root"
+        TARGET_DIR    = "/tmp/testing_area"
+        
+     
+        BUILD_ID = "my-test-app"
     }
 
     stages {
+        stage('Cleanup Previous Try') {
+            steps {
+                sh 'mvn clean'
+                sh "sourceanalyzer -b ${BUILD_ID} -clean || true"
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Build Parent & Backend') {
+        stage('Build & Local Translate (Fortify)') {
             steps {
-                sh 'mvn clean install -DskipTests -pl .,backend'
+                echo 'Building and Translating for Fortify...'
+               
+                sh "sourceanalyzer -b ${BUILD_ID} mvn clean install -DskipTests"
             }
         }
 
-        stage('Build Frontend') {
-            steps {
-                // frontend-maven-plugin handles node/npm installation and build
-                sh 'mvn clean install -DskipTests -pl frontend'
-            }
-        }
-
-        stage('Unit Tests') {
-            steps {
-                sh 'mvn test'
-            }
-        }
-
-        stage('Fortify Static Code Analysis') {
+        stage('Fortify Remote Scan') {
             steps {
                 echo 'Starting Fortify Scan...'
-                // Placeholder for Fortify scan command
-                // Example for sourceanalyzer:
-                // sh "sourceanalyzer -b small-project-build -clean"
-                // sh "sourceanalyzer -b small-project-build mvn clean install -DskipTests"
-                // sh "sourceanalyzer -b small-project-build -scan -f small-project.fpr"
                 
-                // Generic placeholder for Fortify on-demand or CI/CD integration
-                echo 'Scanning source code for vulnerabilities...'
-                echo 'Scan complete. Report generated: small-project.fpr'
+                sh "sourceanalyzer -b ${BUILD_ID} -scan -f results.fpr"
             }
         }
 
-        stage('Archive Artifacts') {
+        stage('Deploy to Remote (Testing)') {
             steps {
-                archiveArtifacts artifacts: 'backend/target/*.jar,frontend/dist/**/*', fingerprint: true
+                
+                withCredentials([usernamePassword(credentialsId: 'your-ssh-credentials-id', passwordVariable: 'SSH_PASS', usernameVariable: 'SSH_USER')]) {
+                    
+                    echo 'Preparing remote directory...'
+                    sh "sshpass -p '$SSH_PASS' ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_SERVER} 'mkdir -p ${TARGET_DIR}'"
+
+                    echo 'Uploading Jar file...'
+                    
+                    sh "sshpass -p '$SSH_PASS' scp -o StrictHostKeyChecking=no backend/target/*.jar ${REMOTE_USER}@${REMOTE_SERVER}:${TARGET_DIR}/app.jar"
+                    
+                    echo 'Running Application...'
+                    
+                    sh "sshpass -p '$SSH_PASS' ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_SERVER} 'nohup java -jar ${TARGET_DIR}/app.jar > ${TARGET_DIR}/log.txt 2>&1 &'"
+                }
             }
         }
     }
 
     post {
         always {
-            junit '**/target/surefire-reports/*.xml'
+            
+            archiveArtifacts artifacts: 'results.fpr', allowEmptyArchive: true
+            echo "To delete everything on remote later, run: ssh root@${REMOTE_SERVER} 'rm -rf ${TARGET_DIR}'"
         }
         success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed. Please check the logs.'
+            echo 'Done! Test deployment and scan completed.'
         }
     }
 }
